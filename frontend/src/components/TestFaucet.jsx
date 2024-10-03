@@ -9,7 +9,7 @@ const TestFaucet = () => {
             rel="noopener noreferrer"
             className="text-2xl font-semibold flex items-center justify-center"
           >
-            Get Oasis Testnet Tokens Here
+            Get Oasis Testnet Tokens Here ( Choose Sapphire )
             <ExternalLinkIcon className="h-4 w-4 ml-1" />
           </a>
         </div>
