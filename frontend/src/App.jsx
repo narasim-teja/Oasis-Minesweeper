@@ -42,19 +42,19 @@ function App() {
 
   // Event handler functions
   const handleGameStarted = (player, betAmount) => {
-    toast.success(`Game started with bet: ${formatEther(betAmount)} ETH`);
+    toast.success(`Game started with bet: ${formatEther(betAmount)} ROSE`);
   };
 
   const handlePlayerHitMine = (player, lostAmount) => {
-    toast.error(`Hit a mine! Lost: ${formatEther(lostAmount)} ETH`);
+    toast.error(`Hit a mine! Lost: ${formatEther(lostAmount)} ROSE`);
   };
 
   const handleGameCashOut = (player, winnings) => {
-    toast.success(`Cashed out: ${formatEther(winnings)} ETH`);
+    toast.success(`Cashed out: ${formatEther(winnings)} ROSE`);
   };
 
   const handleWinningsWithdrawn = (player, amount) => {
-    toast.success(`Withdrawn: ${formatEther(amount)} ETH`);
+    toast.success(`Withdrawn: ${formatEther(amount)} ROSE`);
   };
 
   useEffect(() => {
@@ -470,7 +470,7 @@ function App() {
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <p className="text-gray-400">Winnings</p>
-                      <p className="text-xl font-bold">{sessionWinnings} ETH</p>
+                      <p className="text-xl font-bold">{sessionWinnings} ROSE</p>
                     </div>
                     <div>
                       <p className="text-gray-400">Safe Moves</p>
