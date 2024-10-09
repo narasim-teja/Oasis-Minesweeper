@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps */
 /* eslint-disable no-unused-vars */
 import { getSigner, getWeb3Provider } from "@dynamic-labs/ethers-v6";
 import { useDynamicContext } from "@dynamic-labs/sdk-react-core";
@@ -10,8 +11,8 @@ import GameBoard from "./components/GameBoard";
 import CountdownTimer from "./components/CountdownTimer";
 import { Contract_ABI, Contract_address } from "./constants";
 import * as sapphire from "@oasisprotocol/sapphire-paratime";
-import { useRef } from 'react';
 import { ethers } from "ethers";
+import TestFaucet from "./components/TestFaucet";
 
 function App() {
   const [balance, setBalance] = useState("");
@@ -32,11 +33,9 @@ function App() {
 
   const CONTRACT_ADDRESS = Contract_address;
   const CONTRACT_ABI = Contract_ABI;
+  
 
-  const {
-    primaryWallet,
-    setShowAuthFlow,
-  } = useDynamicContext();
+  const { primaryWallet } = useDynamicContext();
 
   const walletConnected = !!primaryWallet;
   const account = primaryWallet?.address || "";
@@ -64,6 +63,7 @@ function App() {
         try {
           const dynamicProvider = await getWeb3Provider(primaryWallet);
           const dynamicSigner = await getSigner(primaryWallet);
+          const userAddress = await dynamicSigner.getAddress();
           
           // Create unauthenticated provider for read operations
           const unauthProvider = sapphire.wrap(dynamicProvider);
@@ -100,10 +100,10 @@ function App() {
             } else {
               // If auth is invalid, remove it and proceed with sign-in
               localStorage.removeItem('auth');
-              await signIn(dynamicSigner);
+              await signIn(dynamicSigner,userAddress);
             }
           } else {
-            await signIn(dynamicSigner);
+            await signIn(dynamicSigner,userAddress);
           }
 
           // Fetch balance
@@ -158,7 +158,7 @@ function App() {
     if (readContract && auth) {
       try {
         const gameState = await readContract.getGameState(auth);
-        console.log("GameState:", gameState);
+        // console.log("GameState:", gameState);
 
         const [isActive, winnings, safeMoves, remainingTime, selectedMoves] = gameState;
 
@@ -370,41 +370,31 @@ function App() {
     return auth && auth.time && (currentTime - auth.time < 24 * 60 * 60); // Valid for 24 hours
   };
 
-  const signIn = async (signer) => {
+  const signIn = async (signer,userAddress) => {
     try {
       const currentTime = Math.floor(Date.now() / 1000);
-      const user = await signer.getAddress();
+      const user = userAddress;
+      console.log(user)
 
-      const domain = {
+      const signature = await signer.signTypedData({
         name: "SignInExample.SignIn",
         version: "1",
-        chainId: 23295, // Sapphire testnet chain ID
+        chainId: 23295,
         verifyingContract: CONTRACT_ADDRESS
-      };
-
-      const types = {
+    }, {
         SignIn: [
-          { name: 'user', type: 'address' },
-          { name: 'time', type: 'uint32' },
+            { name: 'user', type: "address" },
+            { name: 'time', type: 'uint32' },
         ]
-      };
-
-      const value = {
+    }, {
         user,
-        time: currentTime,
-      };
+        time: currentTime
+    });
+    const rsv = ethers.Signature.from(signature);
+    const auth = {user, time:currentTime, rsv};
 
-      const signature = await signer._signTypedData(domain, types, value);
-      const { r, s, v } = ethers.utils.splitSignature(signature);
-
-      const newAuth = {
-        user,
-        time: currentTime,
-        rsv: { r, s, v }
-      };
-
-      setAuth(newAuth);
-      localStorage.setItem('auth', JSON.stringify(newAuth));
+      setAuth(auth);
+      localStorage.setItem('auth', JSON.stringify(auth));
 
       // Create authenticated provider
       const authProvider = sapphire.wrap(signer);
@@ -417,6 +407,7 @@ function App() {
         authProvider
       );
       setWriteContract(contractInstance);
+      window.location.reload();
     } catch (error) {
       console.error("Error during sign-in:", error);
       toast.error("Sign-in failed. Please try again.");
@@ -451,11 +442,15 @@ function App() {
           </div>
         ) : (
           <div className="space-y-8">
+            
+          <div className="bg-gray-800 rounded-lg p-6 shadow-lg">
+            <TestFaucet /> 
+          </div>
             <div className="bg-gray-800 rounded-lg p-6 shadow-lg">
               <h2 className="text-2xl font-semibold mb-4">Game Rules</h2>
               <ul className="list-disc list-inside">
                 <li>The game is played on a 5x5 grid with 5 hidden mines.</li>
-                <li>Click on cells to reveal them. Avoid the mines!</li>
+                <li>Click on cells to select them. Submit Moves to validate </li>
                 <li>Each safe move increases your potential winnings.</li>
                 <li>Cash out anytime to secure your winnings.</li>
                 <li>Hit a mine, and you lose your bet.</li>

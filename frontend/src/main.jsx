@@ -32,6 +32,13 @@ createRoot(document.getElementById('root')).render(
         environmentId: "d26a13e5-58d2-44a0-9820-f774949d6059",
         walletConnectors: [ EthereumWalletConnectors ],
         overrides: { evmNetworks },
+        events: {
+          onLogout: (args) => {
+            localStorage.removeItem("auth");
+            window.location.reload();
+            console.log("onLogout was called", args);
+          },
+        },
       }}
     >
       <App />
