@@ -336,11 +336,15 @@ function App() {
 
   // Add checkAuth function
   const checkAuth = async () => {
+    console.log("Checking auth...");
     const storedAuthStr = localStorage.getItem('auth');
     let storedAuth = null;
 
     if (storedAuthStr) {
       storedAuth = JSON.parse(storedAuthStr);
+      console.log("Stored auth found:", storedAuth);
+    } else {
+      console.log("No stored auth found");
     }
 
     const currentTime = Math.floor(new Date().getTime() / 1000);
@@ -348,12 +352,16 @@ function App() {
     if (storedAuth && storedAuth.time && storedAuth.user && storedAuth.rsv) {
       // Check if auth is still valid (within last 24 hours)
       if (storedAuth.time > (currentTime - (60 * 60 * 24))) { // time in seconds
+        console.log("Auth is still valid");
         setAuth(storedAuth);
         return;
+      } else {
+        console.log("Auth has expired");
       }
     }
 
     // If no valid auth, perform sign-in
+    console.log("Performing sign-in");
     await signIn();
   };
 
@@ -424,7 +432,7 @@ function App() {
   
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-900 to-gray-800 text-white">
+    <div className="min-h-screen bg-gradient-to-b from-gray-900 to-gray-800 text-white pt-20">
       <Toaster
         position="top-right"
         toastOptions={{
@@ -434,30 +442,27 @@ function App() {
           },
         }}
       />
-      <Header balance={balance} account={account} />
+      <Header />
       <div className="container mx-auto px-4 py-8">
         {!walletConnected ? (
-          <div className="flex justify-center">
-            {/* Show the DynamicWidget for wallet connection */}
-            <button
-              onClick={() => setShowAuthFlow(true)}
-              className="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-            >
-              Connect Wallet
-            </button>
+          <div className="text-center">
+            <h2 className="text-3xl font-bold mb-4">Welcome to Oasis Minesweeper</h2>
+            <p className="mb-4">Connect your wallet to start playing!</p>
           </div>
         ) : (
           <div className="space-y-8">
-            <div className="flex justify-between items-center">
-              <h1 className="text-3xl font-bold">Minesweeper Game</h1>
-              <button
-                onClick={handleWithdraw}
-                className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition duration-300 ease-in-out transform hover:scale-105"
-              >
-                Withdraw to Account
-              </button>
+            <div className="bg-gray-800 rounded-lg p-6 shadow-lg">
+              <h2 className="text-2xl font-semibold mb-4">Game Rules</h2>
+              <ul className="list-disc list-inside">
+                <li>The game is played on a 5x5 grid with 5 hidden mines.</li>
+                <li>Click on cells to reveal them. Avoid the mines!</li>
+                <li>Each safe move increases your potential winnings.</li>
+                <li>Cash out anytime to secure your winnings.</li>
+                <li>Hit a mine, and you lose your bet.</li>
+                <li>You have 3 minutes to complete the game.</li>
+              </ul>
             </div>
-
+            
             {!sessionGameActive ? (
               <div className="text-center">
                 <p className="mb-4">Start a new game session to play!</p>
@@ -516,6 +521,15 @@ function App() {
                 </div>
               </>
             )}
+            
+            <div className="mt-8 text-center">
+              <button
+                onClick={handleWithdraw}
+                className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition duration-300 ease-in-out transform hover:scale-105"
+              >
+                Withdraw to Account
+              </button>
+            </div>
           </div>
         )}
       </div>
