@@ -190,11 +190,11 @@ function App() {
     try {
       if (writeContract) {
         // Perform a static call to simulate the transaction
-        await writeContract.startGame.staticCall({ value: parseEther("0.1") });
+        await writeContract.startGame.staticCall({ value: parseEther("1") });
 
         // Proceed with sending the transaction
         await promiseToast(
-          writeContract.startGame({ value: parseEther("0.1") }).then(tx => tx.wait()),
+          writeContract.startGame({ value: parseEther("1") }).then(tx => tx.wait()),
           'Starting game...',
           'Game started successfully!',
           'Failed to start game. Please try again.'
