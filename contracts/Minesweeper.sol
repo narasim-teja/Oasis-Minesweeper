@@ -25,11 +25,11 @@ contract Minesweeper {
     mapping(address => uint256) public balances;
     address[] public players;
 
-    uint256 public constant ENTRY_FEE_MIN = 0.1 ether;
-    uint256 public constant ENTRY_FEE_MAX = 0.5 ether;
+    uint256 public constant ENTRY_FEE_MIN = 1 ether;
+    uint256 public constant ENTRY_FEE_MAX = 5 ether;
     uint256 public constant TIME_LIMIT = 3 minutes;
     uint8 public constant GRID_SIZE = 25;
-    uint8 public constant NUM_MINES = 3;
+    uint8 public constant NUM_MINES = 5;
 
 
     event GameStarted(address indexed player, uint256 betAmount);

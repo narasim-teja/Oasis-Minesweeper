@@ -262,9 +262,16 @@ function App() {
     setSessionSafeMoves("");
     setSessionSelectedMoves([]);
     setSessionRemainingTime(0);
-    setAllSelectedCells([]);
+    setAllSelectedCells([]); 
     toast.success('Game restarted. Start a new game session!');
+    
   };
+
+  useEffect(() => {
+    if (!sessionGameActive) {
+      setAllSelectedCells([]);
+    }
+  }, [sessionGameActive]);
 
   const handleCashout = async () => {
     try {
@@ -413,6 +420,8 @@ function App() {
       checkAuth();
     }
   }, [primaryWallet]);
+
+  
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-900 to-gray-800 text-white">
