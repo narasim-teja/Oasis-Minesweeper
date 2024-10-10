@@ -1,6 +1,11 @@
-export const Contract_address = "0x11CE5C45a296940795b4d276c14fC47139062af2"
+export const Contract_address = "0x79D179A03DAd23E6f2E0B8229eC55e906806e672"
 
 export const Contract_ABI = [
+  {
+    "inputs": [],
+    "stateMutability": "nonpayable",
+    "type": "constructor"
+  },
   {
     "anonymous": false,
     "inputs": [
@@ -79,6 +84,32 @@ export const Contract_ABI = [
   },
   {
     "inputs": [],
+    "name": "DOMAIN_SEPARATOR",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "EIP712_DOMAIN_TYPEHASH",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "ENTRY_FEE_MAX",
     "outputs": [
       {
@@ -124,6 +155,32 @@ export const Contract_ABI = [
         "internalType": "uint8",
         "name": "",
         "type": "uint8"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "SIGNIN_TYPE",
+    "outputs": [
+      {
+        "internalType": "string",
+        "name": "",
+        "type": "string"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "SIGNIN_TYPEHASH",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
       }
     ],
     "stateMutability": "view",
@@ -182,7 +239,47 @@ export const Contract_ABI = [
     "type": "function"
   },
   {
-    "inputs": [],
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "user",
+            "type": "address"
+          },
+          {
+            "internalType": "uint32",
+            "name": "time",
+            "type": "uint32"
+          },
+          {
+            "components": [
+              {
+                "internalType": "bytes32",
+                "name": "r",
+                "type": "bytes32"
+              },
+              {
+                "internalType": "bytes32",
+                "name": "s",
+                "type": "bytes32"
+              },
+              {
+                "internalType": "uint8",
+                "name": "v",
+                "type": "uint8"
+              }
+            ],
+            "internalType": "struct SignatureRSV",
+            "name": "rsv",
+            "type": "tuple"
+          }
+        ],
+        "internalType": "struct Minesweeper.SignIn",
+        "name": "auth",
+        "type": "tuple"
+      }
+    ],
     "name": "getGameState",
     "outputs": [
       {

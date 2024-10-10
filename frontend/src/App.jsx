@@ -11,10 +11,12 @@ import CountdownTimer from "./components/CountdownTimer";
 import { Contract_ABI, Contract_address } from "./constants";
 import * as sapphire from "@oasisprotocol/sapphire-paratime";
 import { useRef } from 'react';
+import { ethers } from "ethers";
 
 function App() {
   const [balance, setBalance] = useState("");
-  const [contract, setContract] = useState(null);
+  const [readContract, setReadContract] = useState(null);
+  const [writeContract, setWriteContract] = useState(null);
   const [selectedCells, setSelectedCells] = useState([]);
   const [selectedCellsDisplay, setSelectedCellsDisplay] = useState("");
   const [sessionGameActive, setSessionGameActive] = useState(false);
@@ -23,6 +25,10 @@ function App() {
   const [sessionSelectedMoves, setSessionSelectedMoves] = useState([]);
   const [sessionRemainingTime, setSessionRemainingTime] = useState(0);
   const [allSelectedCells, setAllSelectedCells] = useState([]);
+  const [auth, setAuth] = useState(null);
+  const [unauthenticatedProvider, setUnauthenticatedProvider] = useState(null);
+  const [authenticatedProvider, setAuthenticatedProvider] = useState(null);
+
 
   const CONTRACT_ADDRESS = Contract_address;
   const CONTRACT_ABI = Contract_ABI;
@@ -58,18 +64,50 @@ function App() {
         try {
           const dynamicProvider = await getWeb3Provider(primaryWallet);
           const dynamicSigner = await getSigner(primaryWallet);
-          const wrappedSigner = sapphire.wrap(dynamicSigner);
+          
+          // Create unauthenticated provider for read operations
+          const unauthProvider = sapphire.wrap(dynamicProvider);
+          setUnauthenticatedProvider(unauthProvider);
 
-          // Initialize contract
-          const contractInstance = new Contract(
+          // Create authenticated signer for write operations
+          const authSigner = sapphire.wrap(dynamicSigner);
+
+          // Initialize read-only contract instance
+          const readContractInstance = new Contract(
             CONTRACT_ADDRESS,
             CONTRACT_ABI,
-            wrappedSigner
+            unauthProvider
           );
-          setContract(contractInstance);
+          setReadContract(readContractInstance);
+
+          // Initialize write contract instance
+          const writeContractInstance = new Contract(
+            CONTRACT_ADDRESS,
+            CONTRACT_ABI,
+            authSigner
+          );
+          setWriteContract(writeContractInstance);
+
+          // Check for existing auth
+          const existingAuth = localStorage.getItem('auth');
+          if (existingAuth) {
+            const parsedAuth = JSON.parse(existingAuth);
+            if (isAuthValid(parsedAuth)) {
+              setAuth(parsedAuth);
+              // Create authenticated provider
+              const authProvider = sapphire.wrap(dynamicSigner);
+              setAuthenticatedProvider(authProvider);
+            } else {
+              // If auth is invalid, remove it and proceed with sign-in
+              localStorage.removeItem('auth');
+              await signIn(dynamicSigner);
+            }
+          } else {
+            await signIn(dynamicSigner);
+          }
 
           // Fetch balance
-          const balanceBigInt = await wrappedSigner.provider.getBalance(account);
+          const balanceBigInt = await unauthProvider.getBalance(account);
           const balance = formatEther(balanceBigInt);
           setBalance(balance);
 
@@ -80,27 +118,26 @@ function App() {
         }
       }
     };
-
     init();
   }, [primaryWallet]);
 
   useEffect(() => {
-    if (contract) {
+    if (readContract) {
       // Attach event listeners
-      contract.on("GameStarted", handleGameStarted);
-      contract.on("PlayerHitMine", handlePlayerHitMine);
-      contract.on("GameCashOut", handleGameCashOut);
-      contract.on("WinningsWithdrawn", handleWinningsWithdrawn);
+      readContract.on("GameStarted", handleGameStarted);
+      readContract.on("PlayerHitMine", handlePlayerHitMine);
+      readContract.on("GameCashOut", handleGameCashOut);
+      readContract.on("WinningsWithdrawn", handleWinningsWithdrawn);
 
       // Cleanup function to remove listeners
       return () => {
-        contract.off("GameStarted", handleGameStarted);
-        contract.off("PlayerHitMine", handlePlayerHitMine);
-        contract.off("GameCashOut", handleGameCashOut);
-        contract.off("WinningsWithdrawn", handleWinningsWithdrawn);
+        readContract.off("GameStarted", handleGameStarted);
+        readContract.off("PlayerHitMine", handlePlayerHitMine);
+        readContract.off("GameCashOut", handleGameCashOut);
+        readContract.off("WinningsWithdrawn", handleWinningsWithdrawn);
       };
     }
-  }, [contract]);
+  }, [readContract]);
 
   const promiseToast = (promise, loadingMessage, successMessage, errorMessage) => {
     const toastId = toast.loading(loadingMessage, { duration: Infinity });
@@ -118,35 +155,21 @@ function App() {
   };
 
   const fetchGameState = async () => {
-    if (contract) {
+    if (readContract && auth) {
       try {
-        const gameState = await contract.getGameState();
+        const gameState = await readContract.getGameState(auth);
         console.log("GameState:", gameState);
 
-        // Access return values using indices
-        const isActive = gameState[0];
-        const winnings = gameState[1];
-        const safeMoves = gameState[2];
-        const remainingTime = gameState[3];
-        const selectedMoves = gameState[4];
+        const [isActive, winnings, safeMoves, remainingTime, selectedMoves] = gameState;
 
-        console.log("isActive:", isActive);
-        console.log("winnings:", winnings);
-        console.log("safeMoves:", safeMoves);
-        console.log("remainingTime:", remainingTime);
-        console.log("selectedMoves:", selectedMoves);
-
-        // Handle BigInt conversion if necessary
-        const selectedMovesArray = selectedMoves.map((move) => Number(move.toString()));
-
-        // Update state
         setSessionGameActive(isActive);
         setSessionWinnings(formatEther(winnings));
         setSessionSafeMoves(safeMoves.toString());
         setSessionRemainingTime(Number(remainingTime.toString()));
-        setSessionSelectedMoves(selectedMovesArray);
+        setSessionSelectedMoves(selectedMoves.map(move => Number(move.toString())));
       } catch (error) {
         console.error("Error fetching game state:", error);
+        handleError(error);
       }
     }
   };
@@ -157,33 +180,29 @@ function App() {
   };
 
   useEffect(() => {
-    if (walletConnected && contract) {
+    if (walletConnected && readContract) {
       fetchGameState();
       setAllSelectedCells([]); // Reset all selected cells when starting a new game
     }
-  }, [walletConnected, contract]);
+  }, [walletConnected, readContract]);
 
   const handleStartGame = async () => {
     try {
-      if (contract) {
-        try {
-          // Perform a static call to simulate the transaction
-          await contract.startGame.staticCall({ value: parseEther("0.1") });
+      if (writeContract) {
+        // Perform a static call to simulate the transaction
+        await writeContract.startGame.staticCall({ value: parseEther("0.1") });
 
-          // Proceed with sending the transaction
-          await promiseToast(
-            contract.startGame({ value: parseEther("0.1") }).then(tx => tx.wait()),
-            'Starting game...',
-            'Game started successfully!',
-            'Failed to start game. Please try again.'
-          );
-          fetchGameState();
-        } catch (error) {
-          console.error("Error starting game:", error);
-          handleError(error);
-        }
+        // Proceed with sending the transaction
+        await promiseToast(
+          writeContract.startGame({ value: parseEther("0.1") }).then(tx => tx.wait()),
+          'Starting game...',
+          'Game started successfully!',
+          'Failed to start game. Please try again.'
+        );
+        fetchGameState();
       }
     } catch (error) {
+      console.error("Error starting game:", error);
       handleError(error);
     }
   };
@@ -194,20 +213,20 @@ function App() {
       const sortedCells = newSelectedCells.sort((a, b) => a - b);
       setSelectedCellsDisplay(sortedCells.map(cell => cell + 1).join(", "));
 
-      if (contract && newSelectedCells.length > 0) {
+      if (writeContract && newSelectedCells.length > 0) {
         try {
           // Perform a static call to simulate the transaction
-          await contract.makeMoves.staticCall(sortedCells);
+          await writeContract.makeMoves.staticCall(sortedCells);
 
           // Proceed with sending the transaction
           await promiseToast(
-            contract.makeMoves(sortedCells).then(tx => tx.wait()),
+            writeContract.makeMoves(sortedCells).then(tx => tx.wait()),
             'Submitting moves...',
             'Moves submitted successfully!',
             'Failed to submit moves. Please try again.'
           );
           setAllSelectedCells(prev => [...prev, ...newSelectedCells]);
-          setSessionSelectedMoves(prev => [...prev, newSelectedCells]);
+          setSessionSelectedMoves(prev => [...prev, ...newSelectedCells]);
           setSelectedCells([]);
           console.log("Moves submitted:", sortedCells);
           fetchGameState();
@@ -249,14 +268,14 @@ function App() {
 
   const handleCashout = async () => {
     try {
-      if (contract) {
+      if (writeContract) {
         try {
           // Perform a static call to simulate the transaction
-          await contract.cashOut.staticCall();
+          await writeContract.cashOut.staticCall();
 
           // Proceed with sending the transaction
           await promiseToast(
-            contract.cashOut().then(tx => tx.wait()),
+            writeContract.cashOut().then(tx => tx.wait()),
             'Cashing out...',
             'Cashed out successfully!',
             'Failed to cash out. Please try again.'
@@ -274,14 +293,14 @@ function App() {
 
   const handleWithdraw = async () => {
     try {
-      if (contract) {
+      if (writeContract) {
         try {
           // Perform a static call to simulate the transaction
-          await contract.withdraw.staticCall();
+          await writeContract.withdraw.staticCall();
 
           // Proceed with sending the transaction
           await promiseToast(
-            contract.withdraw().then(tx => tx.wait()),
+            writeContract.withdraw().then(tx => tx.wait()),
             'Withdrawing...',
             'Withdrawn successfully!',
             'Failed to withdraw. Please try again.'
@@ -307,6 +326,93 @@ function App() {
       toast.error("An unknown error occurred");
     }
   };
+
+  // Add checkAuth function
+  const checkAuth = async () => {
+    const storedAuthStr = localStorage.getItem('auth');
+    let storedAuth = null;
+
+    if (storedAuthStr) {
+      storedAuth = JSON.parse(storedAuthStr);
+    }
+
+    const currentTime = Math.floor(new Date().getTime() / 1000);
+
+    if (storedAuth && storedAuth.time && storedAuth.user && storedAuth.rsv) {
+      // Check if auth is still valid (within last 24 hours)
+      if (storedAuth.time > (currentTime - (60 * 60 * 24))) { // time in seconds
+        setAuth(storedAuth);
+        return;
+      }
+    }
+
+    // If no valid auth, perform sign-in
+    await signIn();
+  };
+
+  const isAuthValid = (auth) => {
+    const currentTime = Math.floor(Date.now() / 1000);
+    return auth && auth.time && (currentTime - auth.time < 24 * 60 * 60); // Valid for 24 hours
+  };
+
+  const signIn = async (signer) => {
+    try {
+      const currentTime = Math.floor(Date.now() / 1000);
+      const user = await signer.getAddress();
+
+      const domain = {
+        name: "SignInExample.SignIn",
+        version: "1",
+        chainId: 23295, // Sapphire testnet chain ID
+        verifyingContract: CONTRACT_ADDRESS
+      };
+
+      const types = {
+        SignIn: [
+          { name: 'user', type: 'address' },
+          { name: 'time', type: 'uint32' },
+        ]
+      };
+
+      const value = {
+        user,
+        time: currentTime,
+      };
+
+      const signature = await signer._signTypedData(domain, types, value);
+      const { r, s, v } = ethers.utils.splitSignature(signature);
+
+      const newAuth = {
+        user,
+        time: currentTime,
+        rsv: { r, s, v }
+      };
+
+      setAuth(newAuth);
+      localStorage.setItem('auth', JSON.stringify(newAuth));
+
+      // Create authenticated provider
+      const authProvider = sapphire.wrap(signer);
+      setAuthenticatedProvider(authProvider);
+
+      // Reinitialize contract with authenticated provider
+      const contractInstance = new Contract(
+        CONTRACT_ADDRESS,
+        CONTRACT_ABI,
+        authProvider
+      );
+      setWriteContract(contractInstance);
+    } catch (error) {
+      console.error("Error during sign-in:", error);
+      toast.error("Sign-in failed. Please try again.");
+    }
+  };
+
+  useEffect(() => {
+    if (primaryWallet) {
+      checkAuth();
+    }
+  }, [primaryWallet]);
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-900 to-gray-800 text-white">
