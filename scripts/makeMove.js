@@ -6,7 +6,7 @@ async function main() {
   const gameAddress = process.env.CONTRACT_ADDR;
   const game = await hre.ethers.getContractAt("Minesweeper", gameAddress, player);
 
-  const positions = [1, 4, 13]; // Replace with your positions
+  const positions = [3]; // Replace with your positions
   tx = await game.makeMoves(positions);
   await tx.wait();
   console.log("Moves made");

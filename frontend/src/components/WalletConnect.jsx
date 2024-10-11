@@ -1,3 +1,5 @@
+/* eslint-disable no-unused-vars */
+/* eslint-disable react/prop-types */
 import React from "react";
 import { ethers } from "ethers";
 import * as sapphire from "@oasisprotocol/sapphire-paratime";
@@ -15,36 +17,39 @@ function WalletConnect({
   const connectWallet = async () => {
     if (typeof window.ethereum !== "undefined") {
       try {
-        // Initialize ethers provider and signer
+        // Initialize ethers provider and signer from MetaMask
         const provider = new ethers.providers.Web3Provider(window.ethereum);
         await provider.send("eth_requestAccounts", []);
         const signer = provider.getSigner();
-
-        // Wrap provider and signer with Sapphire for encryption
-        const wrappedProvider = sapphire.wrap(provider);
-        const wrappedSigner = sapphire.wrap(signer);
-
-        // Set provider and signer in state
-        setProvider(wrappedProvider);
 
         // Get account address
         const accountAddress = await signer.getAddress();
         setAccount(accountAddress);
 
-        // Fetch balance using the wrapped provider
-        const balanceBigNumber = await wrappedProvider.getBalance(accountAddress);
+        // Fetch balance using the provider
+        const balanceBigNumber = await provider.getBalance(accountAddress);
         const balance = ethers.utils.formatEther(balanceBigNumber);
         setBalance(balance);
 
-        // Set up read-only contract instance (wrapped provider)
+        // Initialize read-only provider (directly to Sapphire node)
+        const readProvider = new ethers.providers.JsonRpcProvider(
+          "https://testnet.sapphire.oasis.dev"
+        );
+        console.log(readProvider)
+        const wrappedSigner = sapphire.wrap(signer);
+
+        // Set up read-only contract instance
         const readContractInstance = new ethers.Contract(
           contractAddress,
           contractABI,
-          wrappedProvider
+          wrappedSigner
         );
         setReadContract(readContractInstance);
 
-        // Set up write contract instance (wrapped signer)
+        // Wrap signer with Sapphire for write operations
+        
+
+        // Set up write contract instance
         const writeContractInstance = new ethers.Contract(
           contractAddress,
           contractABI,

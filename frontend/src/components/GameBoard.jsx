@@ -1,35 +1,38 @@
-import React from "react";
-import Cell from "./Cell";
+/* eslint-disable no-unused-vars */
+import React from 'react';
 
-function GameBoard({ onCellClick, selectedCells }) {
-  const gridSize = 5; // 5x5 grid
-
-  const rows = [];
-  for (let row = 0; row < gridSize; row++) {
-    const cells = [];
-    for (let col = 0; col < gridSize; col++) {
-      const cellNumber = row * gridSize + col;
-      cells.push(
-        <Cell
-          key={cellNumber}
-          cellNumber={cellNumber}
-          isSelected={selectedCells.includes(cellNumber)}
-          onClick={onCellClick}
-        />
-      );
+// eslint-disable-next-line react/prop-types
+function GameBoard({ onCellClick, selectedCells, sessionSelectedMoves }) {
+  const renderCell = (cellNumber) => {
+    // Adjust for 0-based indexing from the smart contract
+    const adjustedCellNumber = cellNumber - 1;
+    
+    const isSelected = selectedCells.includes(adjustedCellNumber);
+    const isPreviouslySelected = sessionSelectedMoves.flat().includes(adjustedCellNumber);
+    
+    let cellClass = "w-12 h-12 border border-gray-600 flex items-center justify-center text-lg font-bold rounded-md transition-colors duration-200";
+    
+    if (isSelected || isPreviouslySelected) {
+      cellClass += " bg-blue-500 text-white";
+    } else {
+      cellClass += " bg-gray-700 hover:bg-gray-600";
     }
-    rows.push(
-      <tr key={row}>
-        {cells}
-      </tr>
+
+    return (
+      <button
+        key={cellNumber}
+        className={cellClass}
+        onClick={() => onCellClick(adjustedCellNumber)}
+        disabled={isPreviouslySelected}
+      >
+        {cellNumber}
+      </button>
     );
-  }
+  };
 
   return (
-    <div className="border border-gray-500 p-4 rounded-lg bg-white shadow-lg">
-      <table className="table-fixed border-collapse mx-auto">
-        <tbody>{rows}</tbody>
-      </table>
+    <div className="grid grid-cols-5 gap-2 max-w-md mx-auto">
+      {[...Array(25)].map((_, index) => renderCell(index + 1))}
     </div>
   );
 }
