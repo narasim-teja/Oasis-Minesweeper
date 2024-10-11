@@ -1,10 +1,6 @@
 /* eslint-disable no-unused-vars */
 import { getSigner, getWeb3Provider } from "@dynamic-labs/ethers-v6";
 import { useDynamicContext } from "@dynamic-labs/sdk-react-core";
-import {
-  wrapEthersProvider,
-  wrapEthersSigner,
-} from "@oasisprotocol/sapphire-ethers-v6";
 import { Contract, parseEther, formatEther } from "ethers";
 import React, { useState, useEffect } from "react";
 import toast, { Toaster } from 'react-hot-toast';
@@ -14,12 +10,11 @@ import GameBoard from "./components/GameBoard";
 import CountdownTimer from "./components/CountdownTimer";
 import { Contract_ABI, Contract_address } from "./constants";
 import * as sapphire from "@oasisprotocol/sapphire-paratime";
+import { useRef } from 'react';
 
 function App() {
   const [balance, setBalance] = useState("");
-  const [readContract, setReadContract] = useState(null);
-  const [writeContract, setWriteContract] = useState(null);
-  const [gameStarted, setGameStarted] = useState(false);
+  const [contract, setContract] = useState(null);
   const [selectedCells, setSelectedCells] = useState([]);
   const [selectedCellsDisplay, setSelectedCellsDisplay] = useState("");
   const [sessionGameActive, setSessionGameActive] = useState(false);
@@ -37,74 +32,49 @@ function App() {
     setShowAuthFlow,
   } = useDynamicContext();
 
-  const [signer, setSigner] = useState(null);
-  const [provider, setProvider] = useState(null);
-
   const walletConnected = !!primaryWallet;
   const account = primaryWallet?.address || "";
+
+  // Event handler functions
+  const handleGameStarted = (player, betAmount) => {
+    toast.success(`Game started with bet: ${formatEther(betAmount)} ETH`);
+  };
+
+  const handlePlayerHitMine = (player, lostAmount) => {
+    toast.error(`Hit a mine! Lost: ${formatEther(lostAmount)} ETH`);
+  };
+
+  const handleGameCashOut = (player, winnings) => {
+    toast.success(`Cashed out: ${formatEther(winnings)} ETH`);
+  };
+
+  const handleWinningsWithdrawn = (player, amount) => {
+    toast.success(`Withdrawn: ${formatEther(amount)} ETH`);
+  };
 
   useEffect(() => {
     const init = async () => {
       if (primaryWallet) {
         try {
           const dynamicProvider = await getWeb3Provider(primaryWallet);
-          
           const dynamicSigner = await getSigner(primaryWallet);
-         
-
-          const wrappedProvider = sapphire.wrap(dynamicProvider);
-          
           const wrappedSigner = sapphire.wrap(dynamicSigner);
-        
 
-          setProvider(wrappedProvider);
-          setSigner(wrappedSigner);
-
-          // Initialize contracts
-          const readContractInstance = new Contract(
+          // Initialize contract
+          const contractInstance = new Contract(
             CONTRACT_ADDRESS,
             CONTRACT_ABI,
             wrappedSigner
           );
-          
-          setReadContract(readContractInstance);
-
-          const writeContractInstance = new Contract(
-            CONTRACT_ADDRESS,
-            CONTRACT_ABI,
-            wrappedSigner
-          );
-          setWriteContract(writeContractInstance);
+          setContract(contractInstance);
 
           // Fetch balance
-          const balanceBigInt = await wrappedProvider.getBalance(account);
+          const balanceBigInt = await wrappedSigner.provider.getBalance(account);
           const balance = formatEther(balanceBigInt);
           setBalance(balance);
 
           // Fetch initial game state
-          fetchGameState(readContractInstance)
-
-          // Event listeners
-          writeContractInstance.on("GameStarted", (player, betAmount) => {
-            toast.success(`Game started with bet: ${formatEther(betAmount)} ETH`);
-          });
-
-          writeContractInstance.on("PlayerHitMine", (player, lostAmount) => {
-            toast.error(`Hit a mine! Lost: ${formatEther(lostAmount)} ETH`);
-          });
-
-          writeContractInstance.on("GameCashOut", (player, winnings) => {
-            toast.success(`Cashed out: ${formatEther(winnings)} ETH`);
-          });
-
-          writeContractInstance.on("WinningsWithdrawn", (player, amount) => {
-            toast.success(`Withdrawn: ${formatEther(amount)} ETH`);
-          });
-
-          // Clean up event listeners when component unmounts or dependencies change
-          return () => {
-            writeContractInstance.removeAllListeners();
-          };
+          fetchGameState();
         } catch (error) {
           console.error("Error initializing provider and signer", error);
         }
@@ -113,6 +83,24 @@ function App() {
 
     init();
   }, [primaryWallet]);
+
+  useEffect(() => {
+    if (contract) {
+      // Attach event listeners
+      contract.on("GameStarted", handleGameStarted);
+      contract.on("PlayerHitMine", handlePlayerHitMine);
+      contract.on("GameCashOut", handleGameCashOut);
+      contract.on("WinningsWithdrawn", handleWinningsWithdrawn);
+
+      // Cleanup function to remove listeners
+      return () => {
+        contract.off("GameStarted", handleGameStarted);
+        contract.off("PlayerHitMine", handlePlayerHitMine);
+        contract.off("GameCashOut", handleGameCashOut);
+        contract.off("WinningsWithdrawn", handleWinningsWithdrawn);
+      };
+    }
+  }, [contract]);
 
   const promiseToast = (promise, loadingMessage, successMessage, errorMessage) => {
     const toastId = toast.loading(loadingMessage, { duration: Infinity });
@@ -129,45 +117,39 @@ function App() {
     return promise;
   };
 
-  const fetchGameState = async (contractInstance) => {
-    const contract = contractInstance || readContract;
+  const fetchGameState = async () => {
     if (contract) {
       try {
         const gameState = await contract.getGameState();
         console.log("GameState:", gameState);
-  
+
         // Access return values using indices
         const isActive = gameState[0];
         const winnings = gameState[1];
         const safeMoves = gameState[2];
         const remainingTime = gameState[3];
         const selectedMoves = gameState[4];
-  
+
         console.log("isActive:", isActive);
         console.log("winnings:", winnings);
         console.log("safeMoves:", safeMoves);
         console.log("remainingTime:", remainingTime);
         console.log("selectedMoves:", selectedMoves);
-  
+
         // Handle BigInt conversion if necessary
         const selectedMovesArray = selectedMoves.map((move) => Number(move.toString()));
-  
+
         // Update state
         setSessionGameActive(isActive);
         setSessionWinnings(formatEther(winnings));
         setSessionSafeMoves(safeMoves.toString());
         setSessionRemainingTime(Number(remainingTime.toString()));
         setSessionSelectedMoves(selectedMovesArray);
-  
-        // Log the updated state in a separate useEffect
       } catch (error) {
         console.error("Error fetching game state:", error);
       }
     }
   };
-  
-  
-  
 
   const handleTimeUp = () => {
     toast.error("Time's up! The game session has ended.");
@@ -175,27 +157,26 @@ function App() {
   };
 
   useEffect(() => {
-    if (walletConnected && readContract) {
+    if (walletConnected && contract) {
       fetchGameState();
       setAllSelectedCells([]); // Reset all selected cells when starting a new game
     }
-  }, [walletConnected, readContract]);
+  }, [walletConnected, contract]);
 
   const handleStartGame = async () => {
     try {
-      if (writeContract) {
+      if (contract) {
         try {
           // Perform a static call to simulate the transaction
-          await writeContract.startGame.staticCall({ value: parseEther("0.1") });
-  
-          // If the static call doesn't throw, proceed with sending the transaction
+          await contract.startGame.staticCall({ value: parseEther("0.1") });
+
+          // Proceed with sending the transaction
           await promiseToast(
-            writeContract.startGame({ value: parseEther("0.1") }).then(tx => tx.wait()),
+            contract.startGame({ value: parseEther("0.1") }).then(tx => tx.wait()),
             'Starting game...',
             'Game started successfully!',
             'Failed to start game. Please try again.'
           );
-          setGameStarted(true);
           fetchGameState();
         } catch (error) {
           console.error("Error starting game:", error);
@@ -212,15 +193,15 @@ function App() {
       const newSelectedCells = selectedCells.filter(cell => !allSelectedCells.includes(cell));
       const sortedCells = newSelectedCells.sort((a, b) => a - b);
       setSelectedCellsDisplay(sortedCells.map(cell => cell + 1).join(", "));
-  
-      if (writeContract && newSelectedCells.length > 0) {
+
+      if (contract && newSelectedCells.length > 0) {
         try {
           // Perform a static call to simulate the transaction
-          await writeContract.makeMoves.staticCall(sortedCells);
-  
+          await contract.makeMoves.staticCall(sortedCells);
+
           // Proceed with sending the transaction
           await promiseToast(
-            writeContract.makeMoves(sortedCells).then(tx => tx.wait()),
+            contract.makeMoves(sortedCells).then(tx => tx.wait()),
             'Submitting moves...',
             'Moves submitted successfully!',
             'Failed to submit moves. Please try again.'
@@ -241,7 +222,6 @@ function App() {
       handleError(error);
     }
   };
-  
 
   const handleCellClick = (cellNumber) => {
     if (!allSelectedCells.includes(cellNumber)) {
@@ -263,21 +243,20 @@ function App() {
     setSessionSafeMoves("");
     setSessionSelectedMoves([]);
     setSessionRemainingTime(0);
-    setGameStarted(false);
     setAllSelectedCells([]);
     toast.success('Game restarted. Start a new game session!');
   };
 
   const handleCashout = async () => {
     try {
-      if (writeContract) {
+      if (contract) {
         try {
           // Perform a static call to simulate the transaction
-          await writeContract.cashOut.staticCall();
-  
+          await contract.cashOut.staticCall();
+
           // Proceed with sending the transaction
           await promiseToast(
-            writeContract.cashOut().then(tx => tx.wait()),
+            contract.cashOut().then(tx => tx.wait()),
             'Cashing out...',
             'Cashed out successfully!',
             'Failed to cash out. Please try again.'
@@ -292,18 +271,17 @@ function App() {
       handleError(error);
     }
   };
-  
 
   const handleWithdraw = async () => {
     try {
-      if (writeContract) {
+      if (contract) {
         try {
           // Perform a static call to simulate the transaction
-          await writeContract.withdraw.staticCall();
-  
+          await contract.withdraw.staticCall();
+
           // Proceed with sending the transaction
           await promiseToast(
-            writeContract.withdraw().then(tx => tx.wait()),
+            contract.withdraw().then(tx => tx.wait()),
             'Withdrawing...',
             'Withdrawn successfully!',
             'Failed to withdraw. Please try again.'
@@ -311,14 +289,13 @@ function App() {
           fetchGameState();
         } catch (error) {
           console.error("Error withdrawing:", error);
-          handleError(error)
+          handleError(error);
         }
       }
     } catch (error) {
       handleError(error);
     }
   };
-  
 
   const handleError = (error) => {
     console.error("Error:", error);
@@ -422,7 +399,6 @@ function App() {
                     Cashout Session
                   </button>
                 </div>
-                
               </>
             )}
           </div>
