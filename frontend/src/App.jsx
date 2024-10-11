@@ -1,21 +1,24 @@
 /* eslint-disable no-unused-vars */
-import { Contract_ABI, Contract_address } from "./constants";
-import { ethers } from "ethers";
+import { getSigner, getWeb3Provider } from "@dynamic-labs/ethers-v6";
+import { useDynamicContext } from "@dynamic-labs/sdk-react-core";
+import {
+  wrapEthersProvider,
+  wrapEthersSigner,
+} from "@oasisprotocol/sapphire-ethers-v6";
+import { Contract, parseEther, formatEther } from "ethers";
 import React, { useState, useEffect } from "react";
 import toast, { Toaster } from 'react-hot-toast';
 import Header from "./components/Header";
-import WalletConnect from "./components/WalletConnect";
 import StartGame from "./components/StartGame";
 import GameBoard from "./components/GameBoard";
 import CountdownTimer from "./components/CountdownTimer";
+import { Contract_ABI, Contract_address } from "./constants";
+import * as sapphire from "@oasisprotocol/sapphire-paratime";
 
 function App() {
-  const [account, setAccount] = useState("");
   const [balance, setBalance] = useState("");
-  const [provider, setProvider] = useState(null);
   const [readContract, setReadContract] = useState(null);
   const [writeContract, setWriteContract] = useState(null);
-  const [walletConnected, setWalletConnected] = useState(false);
   const [gameStarted, setGameStarted] = useState(false);
   const [selectedCells, setSelectedCells] = useState([]);
   const [selectedCellsDisplay, setSelectedCellsDisplay] = useState("");
@@ -29,39 +32,91 @@ function App() {
   const CONTRACT_ADDRESS = Contract_address;
   const CONTRACT_ABI = Contract_ABI;
 
+  const {
+    primaryWallet,
+    setShowAuthFlow,
+  } = useDynamicContext();
+
+  const [signer, setSigner] = useState(null);
+  const [provider, setProvider] = useState(null);
+
+  const walletConnected = !!primaryWallet;
+  const account = primaryWallet?.address || "";
+
   useEffect(() => {
-    const provider = new ethers.providers.Web3Provider(window.ethereum);
-    const signer = provider.getSigner();
-    const minesweeperContract = new ethers.Contract(Contract_address, Contract_ABI, signer);
-    setReadContract(minesweeperContract);
-    setWriteContract(minesweeperContract);
+    const init = async () => {
+      if (primaryWallet) {
+        try {
+          const dynamicProvider = await getWeb3Provider(primaryWallet);
+          
+          const dynamicSigner = await getSigner(primaryWallet);
+         
 
-    // Listen for events
-    minesweeperContract.on("GameStarted", (player, betAmount) => {
-      toast.success(`Game started with bet: ${ethers.utils.formatEther(betAmount)} ETH`);
-    });
+          const wrappedProvider = sapphire.wrap(dynamicProvider);
+          
+          const wrappedSigner = sapphire.wrap(dynamicSigner);
+        
 
-    minesweeperContract.on("PlayerHitMine", (player, lostAmount) => {
-      toast.error(`Hit a mine! Lost: ${ethers.utils.formatEther(lostAmount)} ETH`);
-    });
+          setProvider(wrappedProvider);
+          setSigner(wrappedSigner);
 
-    minesweeperContract.on("GameCashOut", (player, winnings) => {
-      toast.success(`Cashed out: ${ethers.utils.formatEther(winnings)} ETH`);
-    });
+          // Initialize contracts
+          const readContractInstance = new Contract(
+            CONTRACT_ADDRESS,
+            CONTRACT_ABI,
+            wrappedSigner
+          );
+          
+          setReadContract(readContractInstance);
 
-    minesweeperContract.on("WinningsWithdrawn", (player, amount) => {
-      toast.success(`Withdrawn: ${ethers.utils.formatEther(amount)} ETH`);
-    });
+          const writeContractInstance = new Contract(
+            CONTRACT_ADDRESS,
+            CONTRACT_ABI,
+            wrappedSigner
+          );
+          setWriteContract(writeContractInstance);
 
-    // Clean up event listeners
-    return () => {
-      minesweeperContract.removeAllListeners();
+          // Fetch balance
+          const balanceBigInt = await wrappedProvider.getBalance(account);
+          const balance = formatEther(balanceBigInt);
+          setBalance(balance);
+
+          // Fetch initial game state
+          fetchGameState(readContractInstance)
+
+          // Event listeners
+          writeContractInstance.on("GameStarted", (player, betAmount) => {
+            toast.success(`Game started with bet: ${formatEther(betAmount)} ETH`);
+          });
+
+          writeContractInstance.on("PlayerHitMine", (player, lostAmount) => {
+            toast.error(`Hit a mine! Lost: ${formatEther(lostAmount)} ETH`);
+          });
+
+          writeContractInstance.on("GameCashOut", (player, winnings) => {
+            toast.success(`Cashed out: ${formatEther(winnings)} ETH`);
+          });
+
+          writeContractInstance.on("WinningsWithdrawn", (player, amount) => {
+            toast.success(`Withdrawn: ${formatEther(amount)} ETH`);
+          });
+
+          // Clean up event listeners when component unmounts or dependencies change
+          return () => {
+            writeContractInstance.removeAllListeners();
+          };
+        } catch (error) {
+          console.error("Error initializing provider and signer", error);
+        }
+      }
     };
-  }, []);
+
+    init();
+  }, [primaryWallet]);
 
   const promiseToast = (promise, loadingMessage, successMessage, errorMessage) => {
     const toastId = toast.loading(loadingMessage, { duration: Infinity });
-    
+
     promise
       .then(() => {
         toast.success(successMessage, { id: toastId, duration: 3000 });
@@ -74,22 +129,45 @@ function App() {
     return promise;
   };
 
-  const fetchGameState = async () => {
-    if (readContract) {
+  const fetchGameState = async (contractInstance) => {
+    const contract = contractInstance || readContract;
+    if (contract) {
       try {
-        const gameState = await readContract.getGameState();
-        const [isActive, winnings, safeMoves, remainingTime, selectedMoves] = gameState;
-        
+        const gameState = await contract.getGameState();
+        console.log("GameState:", gameState);
+  
+        // Access return values using indices
+        const isActive = gameState[0];
+        const winnings = gameState[1];
+        const safeMoves = gameState[2];
+        const remainingTime = gameState[3];
+        const selectedMoves = gameState[4];
+  
+        console.log("isActive:", isActive);
+        console.log("winnings:", winnings);
+        console.log("safeMoves:", safeMoves);
+        console.log("remainingTime:", remainingTime);
+        console.log("selectedMoves:", selectedMoves);
+  
+        // Handle BigInt conversion if necessary
+        const selectedMovesArray = selectedMoves.map((move) => Number(move.toString()));
+  
+        // Update state
         setSessionGameActive(isActive);
-        setSessionWinnings(ethers.utils.formatEther(winnings));
+        setSessionWinnings(formatEther(winnings));
         setSessionSafeMoves(safeMoves.toString());
-        setSessionRemainingTime(Number(remainingTime));
-        setSessionSelectedMoves(selectedMoves);
+        setSessionRemainingTime(Number(remainingTime.toString()));
+        setSessionSelectedMoves(selectedMovesArray);
+  
+        // Log the updated state in a separate useEffect
       } catch (error) {
         console.error("Error fetching game state:", error);
       }
     }
   };
+  
+  
+  
 
   const handleTimeUp = () => {
     toast.error("Time's up! The game session has ended.");
@@ -103,16 +181,16 @@ function App() {
     }
   }, [walletConnected, readContract]);
 
-  const handleWalletConnect = () => {
-    fetchGameState();
-  };
-
   const handleStartGame = async () => {
     try {
       if (writeContract) {
         try {
+          // Perform a static call to simulate the transaction
+          await writeContract.startGame.staticCall({ value: parseEther("0.1") });
+  
+          // If the static call doesn't throw, proceed with sending the transaction
           await promiseToast(
-            writeContract.startGame({ value: ethers.utils.parseEther("0.1") }).then(tx => tx.wait()),
+            writeContract.startGame({ value: parseEther("0.1") }).then(tx => tx.wait()),
             'Starting game...',
             'Game started successfully!',
             'Failed to start game. Please try again.'
@@ -121,12 +199,12 @@ function App() {
           fetchGameState();
         } catch (error) {
           console.error("Error starting game:", error);
+          handleError(error);
         }
       }
     } catch (error) {
-      handleError(error)
+      handleError(error);
     }
-    
   };
 
   const handleSubmit = async () => {
@@ -134,9 +212,13 @@ function App() {
       const newSelectedCells = selectedCells.filter(cell => !allSelectedCells.includes(cell));
       const sortedCells = newSelectedCells.sort((a, b) => a - b);
       setSelectedCellsDisplay(sortedCells.map(cell => cell + 1).join(", "));
-
+  
       if (writeContract && newSelectedCells.length > 0) {
         try {
+          // Perform a static call to simulate the transaction
+          await writeContract.makeMoves.staticCall(sortedCells);
+  
+          // Proceed with sending the transaction
           await promiseToast(
             writeContract.makeMoves(sortedCells).then(tx => tx.wait()),
             'Submitting moves...',
@@ -150,14 +232,16 @@ function App() {
           fetchGameState();
         } catch (error) {
           console.error("Error submitting moves:", error);
+          handleError(error);
         }
       } else if (newSelectedCells.length === 0) {
         toast.error('No new cells selected', { duration: 3000 });
       }
     } catch (error) {
-      handleError(error)
+      handleError(error);
     }
   };
+  
 
   const handleCellClick = (cellNumber) => {
     if (!allSelectedCells.includes(cellNumber)) {
@@ -188,6 +272,10 @@ function App() {
     try {
       if (writeContract) {
         try {
+          // Perform a static call to simulate the transaction
+          await writeContract.cashOut.staticCall();
+  
+          // Proceed with sending the transaction
           await promiseToast(
             writeContract.cashOut().then(tx => tx.wait()),
             'Cashing out...',
@@ -197,17 +285,23 @@ function App() {
           fetchGameState();
         } catch (error) {
           console.error("Error cashing out:", error);
+          handleError(error);
         }
       }
     } catch (error) {
-      handleError(error)
+      handleError(error);
     }
   };
+  
 
   const handleWithdraw = async () => {
     try {
       if (writeContract) {
         try {
+          // Perform a static call to simulate the transaction
+          await writeContract.withdraw.staticCall();
+  
+          // Proceed with sending the transaction
           await promiseToast(
             writeContract.withdraw().then(tx => tx.wait()),
             'Withdrawing...',
@@ -217,53 +311,49 @@ function App() {
           fetchGameState();
         } catch (error) {
           console.error("Error withdrawing:", error);
+          handleError(error)
         }
       }
     } catch (error) {
-      handleError(error)
+      handleError(error);
     }
-    
   };
+  
 
   const handleError = (error) => {
     console.error("Error:", error);
     if (error.data) {
-      // This is likely a revert error from the contract
       toast.error(`Transaction failed: ${error.data.message}`);
     } else if (error.message) {
-      // This could be a network error or other JavaScript error
       toast.error(`Error: ${error.message}`);
     } else {
-      // Fallback error message
       toast.error("An unknown error occurred");
     }
   };
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-900 to-gray-800 text-white">
-      <Toaster 
-        position="top-right" 
-        toastOptions={{ 
+      <Toaster
+        position="top-right"
+        toastOptions={{
           style: {
             background: '#333',
             color: '#fff',
           },
-        }} 
+        }}
       />
-      <Header walletConnected={walletConnected} account={account} balance={balance} />
+      <Header balance={balance} account={account} />
       <div className="container mx-auto px-4 py-8">
         {!walletConnected ? (
-          <WalletConnect
-            setProvider={setProvider}
-            setAccount={setAccount}
-            setBalance={setBalance}
-            setReadContract={setReadContract}
-            setWriteContract={setWriteContract}
-            setWalletConnected={setWalletConnected}
-            contractAddress={CONTRACT_ADDRESS}
-            contractABI={CONTRACT_ABI}
-            onConnect={handleWalletConnect}
-          />
+          <div className="flex justify-center">
+            {/* Show the DynamicWidget for wallet connection */}
+            <button
+              onClick={() => setShowAuthFlow(true)}
+              className="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+            >
+              Connect Wallet
+            </button>
+          </div>
         ) : (
           <div className="space-y-8">
             <div className="flex justify-between items-center">
@@ -279,7 +369,7 @@ function App() {
             {!sessionGameActive ? (
               <div className="text-center">
                 <p className="mb-4">Start a new game session to play!</p>
-                <StartGame writeContract={writeContract} setGameStarted={setGameStarted} onStart={handleStartGame} />
+                <StartGame onStart={handleStartGame} />
               </div>
             ) : (
               <>
@@ -297,8 +387,8 @@ function App() {
                     <div>
                       <p className="text-gray-400">Remaining Time</p>
                       <p className="text-xl font-bold">
-                        <CountdownTimer 
-                          initialTime={sessionRemainingTime} 
+                        <CountdownTimer
+                          initialTime={sessionRemainingTime}
                           onTimeUp={handleTimeUp}
                         />
                       </p>
@@ -313,9 +403,9 @@ function App() {
                     </div>
                   </div>
                 </div>
-                <GameBoard 
-                  onCellClick={handleCellClick} 
-                  selectedCells={selectedCells} 
+                <GameBoard
+                  onCellClick={handleCellClick}
+                  selectedCells={selectedCells}
                   sessionSelectedMoves={sessionSelectedMoves}
                 />
                 <div className="flex justify-center space-x-4 mt-4">
@@ -332,12 +422,7 @@ function App() {
                     Cashout Session
                   </button>
                 </div>
-                {selectedCellsDisplay && (
-                  <div className="text-center mt-4">
-                    <h3 className="text-xl font-semibold">Selected Cells</h3>
-                    <p className="text-lg">{selectedCellsDisplay}</p>
-                  </div>
-                )}
+                
               </>
             )}
           </div>
