@@ -1,8 +1,7 @@
 
 import { Contract_ABI, Contract_address } from "./constants"; 
+
 import React, { useState, useEffect } from "react";
-import { ethers } from "ethers";
-import * as sapphire from '@oasisprotocol/sapphire-paratime';
 import Header from "./components/Header";
 import WalletConnect from "./components/WalletConnect";
 import StartGame from "./components/StartGame";
@@ -27,7 +26,7 @@ function App() {
     if (readContract) {
       try {
         const gameState = await readContract.getGameState();
-        
+        console.log("Game State:", gameState);
       } catch (error) {
         console.error("Error fetching game state:", error);
       }

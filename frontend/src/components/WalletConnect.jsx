@@ -1,6 +1,6 @@
 import React from "react";
 import { ethers } from "ethers";
-import * as sapphire from '@oasisprotocol/sapphire-paratime';
+import * as sapphire from "@oasisprotocol/sapphire-paratime";
 
 function WalletConnect({
   setProvider,
@@ -15,36 +15,40 @@ function WalletConnect({
   const connectWallet = async () => {
     if (typeof window.ethereum !== "undefined") {
       try {
-        // Wrap MetaMask's provider with Sapphire for transaction encryption
-        const provider = sapphire.wrap(new ethers.BrowserProvider(window.ethereum));
-        setProvider(provider);
+        // Initialize ethers provider and signer
+        const provider = new ethers.providers.Web3Provider(window.ethereum);
+        await provider.send("eth_requestAccounts", []);
+        const signer = provider.getSigner();
 
-        // Request account access
-        const accounts = await window.ethereum.request({
-          method: "eth_requestAccounts",
-        });
+        // Wrap provider and signer with Sapphire for encryption
+        const wrappedProvider = sapphire.wrap(provider);
+        const wrappedSigner = sapphire.wrap(signer);
 
-        const signer = await provider.getSigner();
-        const accountAddress = accounts[0];
+        // Set provider and signer in state
+        setProvider(wrappedProvider);
+
+        // Get account address
+        const accountAddress = await signer.getAddress();
         setAccount(accountAddress);
 
-        // Fetch balance
-        const balance = await provider.getBalance(accountAddress);
-        setBalance(ethers.formatEther(balance));
+        // Fetch balance using the wrapped provider
+        const balanceBigNumber = await wrappedProvider.getBalance(accountAddress);
+        const balance = ethers.utils.formatEther(balanceBigNumber);
+        setBalance(balance);
 
-        // Set up read-only contract instance (for view functions)
+        // Set up read-only contract instance (wrapped provider)
         const readContractInstance = new ethers.Contract(
           contractAddress,
           contractABI,
-          provider
+          wrappedProvider
         );
         setReadContract(readContractInstance);
 
-        // Set up write contract instance (for transactions)
+        // Set up write contract instance (wrapped signer)
         const writeContractInstance = new ethers.Contract(
           contractAddress,
           contractABI,
-          signer
+          wrappedSigner
         );
         setWriteContract(writeContractInstance);
 
