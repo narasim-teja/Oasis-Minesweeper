@@ -1,0 +1,21 @@
+{
+  "name": "mines",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^4.0.0",
+    "@oasisprotocol/sapphire-hardhat": "^2.19.4",
+    "hardhat": "~2.19.2"
+  },
+  "dependencies": {
+    "@oasisprotocol/sapphire-contracts": "^0.2.10",
+    "dotenv": "^16.4.5"
+  }
+}
