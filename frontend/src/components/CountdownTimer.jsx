@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+/* eslint-disable react/prop-types */
+import  { useState, useEffect } from 'react';
 
 function CountdownTimer({ initialTime, onTimeUp }) {
   const [timeLeft, setTimeLeft] = useState(initialTime);

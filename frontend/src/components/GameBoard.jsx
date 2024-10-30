@@ -1,7 +1,5 @@
-/* eslint-disable no-unused-vars */
-import React from 'react';
+/* eslint-disable react/prop-types */
 
-// eslint-disable-next-line react/prop-types
 function GameBoard({ onCellClick, selectedCells, sessionSelectedMoves }) {
   const renderCell = (cellNumber) => {
     // Adjust for 0-based indexing from the smart contract
