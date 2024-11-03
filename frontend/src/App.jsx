@@ -189,10 +189,6 @@ function App() {
   const handleStartGame = async () => {
     try {
       if (writeContract) {
-        // Perform a static call to simulate the transaction
-        await writeContract.startGame.staticCall({ value: parseEther("1") });
-
-        // Proceed with sending the transaction
         await promiseToast(
           writeContract.startGame({ value: parseEther("1") }).then(tx => tx.wait()),
           'Starting game...',
@@ -214,26 +210,17 @@ function App() {
       setSelectedCellsDisplay(sortedCells.map(cell => cell + 1).join(", "));
 
       if (writeContract && newSelectedCells.length > 0) {
-        try {
-          // Perform a static call to simulate the transaction
-          await writeContract.makeMoves.staticCall(sortedCells);
-
-          // Proceed with sending the transaction
-          await promiseToast(
-            writeContract.makeMoves(sortedCells).then(tx => tx.wait()),
-            'Submitting moves...',
-            'Moves submitted successfully!',
-            'Failed to submit moves. Please try again.'
-          );
-          setAllSelectedCells(prev => [...prev, ...newSelectedCells]);
-          setSessionSelectedMoves(prev => [...prev, ...newSelectedCells]);
-          setSelectedCells([]);
-          console.log("Moves submitted:", sortedCells);
-          fetchGameState();
-        } catch (error) {
-          console.error("Error submitting moves:", error);
-          handleError(error);
-        }
+        await promiseToast(
+          writeContract.makeMoves(sortedCells).then(tx => tx.wait()),
+          'Submitting moves...',
+          'Moves submitted successfully!',
+          'Failed to submit moves. Please try again.'
+        );
+        setAllSelectedCells(prev => [...prev, ...newSelectedCells]);
+        setSessionSelectedMoves(prev => [...prev, ...newSelectedCells]);
+        setSelectedCells([]);
+        console.log("Moves submitted:", sortedCells);
+        fetchGameState();
       } else if (newSelectedCells.length === 0) {
         toast.error('No new cells selected', { duration: 3000 });
       }
@@ -276,22 +263,13 @@ function App() {
   const handleCashout = async () => {
     try {
       if (writeContract) {
-        try {
-          // Perform a static call to simulate the transaction
-          await writeContract.cashOut.staticCall();
-
-          // Proceed with sending the transaction
-          await promiseToast(
-            writeContract.cashOut().then(tx => tx.wait()),
-            'Cashing out...',
-            'Cashed out successfully!',
-            'Failed to cash out. Please try again.'
-          );
-          fetchGameState();
-        } catch (error) {
-          console.error("Error cashing out:", error);
-          handleError(error);
-        }
+        await promiseToast(
+          writeContract.cashOut().then(tx => tx.wait()),
+          'Cashing out...',
+          'Cashed out successfully!',
+          'Failed to cash out. Please try again.'
+        );
+        fetchGameState();
       }
     } catch (error) {
       handleError(error);
@@ -310,12 +288,11 @@ function App() {
             writeContract.withdraw().then(tx => tx.wait()),
             'Withdrawing...',
             'Withdrawn successfully!',
-            'Failed to withdraw. Please try again.'
+            'No balance available to withdraw'
           );
           fetchGameState();
         } catch (error) {
-          console.error("Error withdrawing:", error);
-          handleError(error);
+          toast.error("You don't have any balance to withdraw");
         }
       }
     } catch (error) {

@@ -29,7 +29,7 @@ createRoot(document.getElementById('root')).render(
   <StrictMode>
     <DynamicContextProvider
       settings={{
-        environmentId: "d26a13e5-58d2-44a0-9820-f774949d6059",
+        environmentId: import.meta.env.VITE_DYNAMIC_ENVIRONMENT_ID,
         walletConnectors: [ EthereumWalletConnectors ],
         overrides: { evmNetworks },
         events: {
