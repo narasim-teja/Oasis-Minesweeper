@@ -1,7 +1,7 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App.jsx';
-
+import { Analytics } from '@vercel/analytics/react';
 import { DynamicContextProvider } from "@dynamic-labs/sdk-react-core";
 import { EthereumWalletConnectors } from '@dynamic-labs/ethereum';
 import './index.css';
@@ -42,6 +42,7 @@ createRoot(document.getElementById('root')).render(
       }}
     >
       <App />
+      <Analytics />
     </DynamicContextProvider>
   </StrictMode>,
 );
