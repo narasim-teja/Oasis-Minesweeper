@@ -423,7 +423,7 @@ function App() {
             <TestFaucet />
             <GameRules />
 
-            {sessionRemainingTime !== 0 ?
+            {sessionRemainingTime == 0 ?
               <div className="text-center">
                 <p className="mb-4">Start a new game session to play!</p>
                 <StartGame onStart={handleStartGame} />
