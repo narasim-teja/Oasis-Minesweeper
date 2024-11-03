@@ -1,30 +1,30 @@
 /* eslint-disable react/prop-types */
 
+import { Button } from "./ui/button";
+
 function GameBoard({ onCellClick, selectedCells, sessionSelectedMoves }) {
   const renderCell = (cellNumber) => {
     // Adjust for 0-based indexing from the smart contract
     const adjustedCellNumber = cellNumber - 1;
-    
+
     const isSelected = selectedCells.includes(adjustedCellNumber);
-    const isPreviouslySelected = sessionSelectedMoves.flat().includes(adjustedCellNumber);
-    
-    let cellClass = "w-12 h-12 border border-gray-600 flex items-center justify-center text-lg font-bold rounded-md transition-colors duration-200";
-    
-    if (isSelected || isPreviouslySelected) {
-      cellClass += " bg-blue-500 text-white";
-    } else {
-      cellClass += " bg-gray-700 hover:bg-gray-600";
-    }
+    const isPreviouslySelected = sessionSelectedMoves
+      .flat()
+      .includes(adjustedCellNumber);
 
     return (
-      <button
+      <Button
         key={cellNumber}
-        className={cellClass}
-        onClick={() => onCellClick(adjustedCellNumber)}
+        size="icon"
+        variant="secondary"
         disabled={isPreviouslySelected}
+        onClick={() => onCellClick(adjustedCellNumber)}
+        className="border"
       >
-        {cellNumber}
-      </button>
+        {isSelected || isPreviouslySelected ?
+          <img src="/rose.png" alt="rose" />
+        : cellNumber}
+      </Button>
     );
   };
 
